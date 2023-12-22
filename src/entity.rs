@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 type Epoch = i64;
 
@@ -40,13 +41,17 @@ enum DatabaseValue {
     Number(i64),
 }
 
-trait EntityAttribute<T> {
-    fn get_initial(&self) -> &T;
+trait BaseEntityAttribute {
+    fn get_initial(&self) -> &DatabaseValue;
 
-    fn get_value(&self) -> &T;
+    fn get_value(&self) -> &DatabaseValue;
 
-    fn set_value(&mut self, value: T, epoch: Epoch);
+    fn set_value(&mut self, value: DatabaseValue, epoch: Epoch);
 }
+
+pub trait EntityAttribute: Debug + BaseEntityAttribute {}
+
+impl<T: Debug + BaseEntityAttribute> EntityAttribute for T {}
 
 #[derive(Debug)]
 struct PhysicalAttribute<'a> {
@@ -92,7 +97,7 @@ impl<'a> PhysicalAttribute<'a> {
 }
 
 
-impl<'a> EntityAttribute<DatabaseValue> for PhysicalAttribute<'a> {
+impl<'a> BaseEntityAttribute for PhysicalAttribute<'a> {
     fn get_initial(&self) -> &DatabaseValue {
         self.get_at_epoch(self.initial_epoch_ptr.get_epoch())
     }
@@ -148,7 +153,7 @@ impl<'a> Entity<'a> {
         }
     }
 
-    fn get<'b>(&'a self, attribute: &'b str) -> Result<&'a PhysicalAttribute, EntityError> {
+    fn get<'b>(&'a self, attribute: &'b str) -> Result<&'a (dyn EntityAttribute), EntityError> {
         if let Some(attr) = self.physical_attributes.get(attribute) {
             Ok(attr)
         } else {
@@ -160,7 +165,7 @@ impl<'a> Entity<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::entity::{DatabaseValue, EpochPtr, PhysicalAttribute, EntityAttribute, Entity, AttributeDescriptor, AttributeKind, EntityError};
+    use crate::entity::{DatabaseValue, EpochPtr, PhysicalAttribute, BaseEntityAttribute, Entity, AttributeDescriptor, AttributeKind, EntityError};
 
     #[test]
     fn get_ptr_slide() {
@@ -207,6 +212,5 @@ mod tests {
         );
         assert!(entity.get("oops").is_err());
         assert_eq!(entity.get("oops").unwrap_err(), EntityError::AttributeNotFound("oops".to_string()))
-
     }
 }
