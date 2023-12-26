@@ -36,11 +36,27 @@ struct AttributeValue<T> {
     value: T,
 }
 
-#[derive(PartialEq)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+
 pub enum DatabaseValue {
     String(String),
     Number(i64),
+    None,
+}
+
+impl PartialEq for DatabaseValue {
+    fn eq(&self, other: &Self) -> bool {
+        use DatabaseValue::*;
+
+        match (self, other) {
+            (None, None) => true,
+            (None, _) => false,
+            (_, None) => false,
+            (&String(ref a), &String(ref b)) => a == b,
+            (&Number(ref a), &Number(ref b)) => a == b,
+            _ => false,
+        }
+    }
 }
 
 pub trait BaseEntityAttribute {

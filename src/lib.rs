@@ -1,6 +1,7 @@
 mod entity;
 mod entity_store;
 mod errors;
+mod expression;
 
 use pyo3::prelude::*;
 

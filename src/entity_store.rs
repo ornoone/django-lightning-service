@@ -42,7 +42,7 @@ impl EntityIdentifierIndex {
     fn add(&mut self, entity: Rc<Entity>) {
         let identifier = entity.get_identifier();
         self.entities_uuid_index.insert(identifier.get_uuid().clone(), Rc::clone(&entity));
-        if (identifier.has_applied_pk()) {
+        if identifier.has_applied_pk() {
             self.entities_pk_index.entry(entity.get_identifier().get_model().clone()).or_insert_with(|| HashMap::new()).insert(identifier.get_applied_pk().unwrap().clone(), Rc::clone(&entity));
         }
 
