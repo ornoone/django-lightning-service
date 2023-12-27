@@ -134,13 +134,21 @@ impl<'a> BaseEntityAttribute for PhysicalAttribute {
 
 pub type PK = i64;
 
-#[derive(PartialEq)]
 #[derive(Debug)]
 #[derive(Clone)]
 pub struct EntityIdentifier {
     model: Model,
     pk: Option<PK>,
     uuid: Uuid
+}
+
+impl PartialEq for EntityIdentifier {
+    fn eq(&self, other: &Self) -> bool {
+        if self.uuid == other.uuid {
+            return true
+        }
+        self.has_applied_pk() && other.has_applied_pk() && self.model == other.model && self.pk == other.pk
+    }
 }
 
 impl EntityIdentifier {

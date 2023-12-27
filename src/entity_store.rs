@@ -157,6 +157,46 @@ mod test {
     }
 
     #[test]
+    fn test_entity_identifier_equality() {
+        let id1 = EntityIdentifier::new("User".to_string());
+
+        let id2 = EntityIdentifier::new("Book".to_string());
+        let id3 = EntityIdentifier::new_persisted("User".to_string(), 1);
+        let id4 = EntityIdentifier::new_persisted("User".to_string(), 1);
+        let id5 = EntityIdentifier::new_persisted("User".to_string(), 2);
+
+        assert_eq!(id1, id1);
+        assert_ne!(id1, id2);
+        assert_ne!(id1, id3);
+        assert_ne!(id1, id4);
+        assert_ne!(id1, id5);
+
+        assert_ne!(id2, id1);
+        assert_eq!(id2, id2);
+        assert_ne!(id2, id3);
+        assert_ne!(id2, id4);
+        assert_ne!(id2, id5);
+
+        assert_ne!(id3, id1);
+        assert_ne!(id3, id2);
+        assert_eq!(id3, id3);
+        assert_eq!(id3, id4);
+        assert_ne!(id3, id5);
+
+        assert_ne!(id4, id1);
+        assert_ne!(id4, id2);
+        assert_eq!(id4, id3);
+        assert_eq!(id4, id4);
+        assert_ne!(id4, id5);
+
+        assert_ne!(id5, id1);
+        assert_ne!(id5, id2);
+        assert_ne!(id5, id3);
+        assert_ne!(id5, id4);
+        assert_eq!(id5, id5);
+    }
+
+    #[test]
     fn test_entity_filter() {
 
         let mut entity_store = EntityStore::new();
