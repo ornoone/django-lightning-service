@@ -3,6 +3,7 @@ use std::rc::Rc;
 use crate::entity::{AttributeDescriptor, Entity, EntityIdentifier, EpochPtr, Model, PK};
 use uuid::Uuid;
 use crate::errors::EntityError;
+use crate::expression::{FilterExpression, match_entity};
 
 struct EntityStore {
     initial_ptr: Rc<EpochPtr>,
@@ -68,11 +69,30 @@ impl EntityStorage {
             storage: HashMap::new(),
         }
     }
+
+    fn filter(&self, model: Model, filter_expression: &FilterExpression) -> Result<Vec<Rc<Entity>>, EntityError> {
+        if let Some(storage) = self.storage.get(&model) {
+            let mut result = vec![];
+            for entity in storage {
+                if match_entity(filter_expression, entity)? {
+                    result.push(Rc::clone(entity))
+                }
+            }
+            Ok(result)
+        } else {
+            Ok(vec![])
+        }
+    }
 }
 
 impl<'a> EntityStore {
     fn get(&self, identifier: &'a EntityIdentifier) -> Result<Rc<Entity>, EntityError> {
         self.index.get(identifier)
+    }
+
+    fn filter(&self, model: Model, filter_expression: &FilterExpression) -> Result<Vec<Rc<Entity>>, EntityError> {
+
+        self.entities.filter(model, filter_expression)
     }
 
 
@@ -110,8 +130,10 @@ impl<'a> EntityStore {
 
 #[cfg(test)]
 mod test {
-    use crate::entity::{AttributeDescriptor, AttributeKind, DatabaseValue, EntityIdentifier};
+    use crate::entity::{AttributeDescriptor, AttributeKind, BaseEntityAttribute, DatabaseValue, EntityAttribute, EntityIdentifier, PhysicalAttribute};
     use crate::entity_store::EntityStore;
+    use crate::expression::{ExactExpression, FilterExpression};
+
     #[test]
 
     fn test_entity_store_add_and_get() {
@@ -125,13 +147,39 @@ mod test {
         let entity_store = entity_store;
 
 
-        assert_eq!(entity.get("name").unwrap().get_initial(), &DatabaseValue::String("default name".to_string()));
-        assert_eq!(entity.get("name").unwrap().get_value(), &DatabaseValue::String("default name".to_string()));
+        assert_eq!(entity.get("name").unwrap().get_initial(), DatabaseValue::String("default name".to_string()));
+        assert_eq!(entity.get("name").unwrap().get_value(), DatabaseValue::String("default name".to_string()));
 
         assert_eq!(entity.get_identifier(), &identifier);
         assert!(entity_store.get(entity.get_identifier()).is_ok());
         assert_eq!(entity_store.get(entity.get_identifier()).unwrap(), entity);
         assert_eq!(&entity_store.get(&identifier).unwrap(), &entity_store.get(&identifier.clone()).unwrap());
+    }
+
+    #[test]
+    fn test_entity_filter() {
+
+        let mut entity_store = EntityStore::new();
+        let attributes_descriptors: Vec<AttributeDescriptor> = vec!["name", "age"].iter().map(
+            |attr| AttributeDescriptor::new(AttributeKind::Physical, attr.to_string(), DatabaseValue::String(format!("default {}", attr)))
+        ).collect();
+
+        for i in 1..100 {
+            let identifier = EntityIdentifier::new("User".to_string());
+
+            let mut entity = entity_store.instantiate_entity(identifier.clone(), attributes_descriptors.clone());
+            let mut name_attr = entity.get("name").unwrap();
+            name_attr.set_value(DatabaseValue::String(format!("user {}", i)), 1);
+            let mut age_attr = entity.get("age").unwrap();
+            age_attr.set_value(DatabaseValue::Number(i), 1);
+        }
+
+        entity_store.current_ptr.slide(1);
+        let list = entity_store.filter("User".to_string(), &FilterExpression::Exact(ExactExpression::new("name".to_string(), DatabaseValue::String("user 4".to_string())))).unwrap();
+        assert_eq!(list.len(), 1);
+        let entity = list.first().unwrap();
+        assert_eq!(entity.get("name").unwrap().get_value(), DatabaseValue::String("user 4".to_string()));
+
     }
 
 

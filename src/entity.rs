@@ -20,12 +20,12 @@ impl Default for EpochPtr {
 }
 
 impl EpochPtr {
-    fn slide(&self, epoch: Epoch) {
+    pub fn slide(&self, epoch: Epoch) {
         let mut ep = self.epoch.borrow_mut();
         *ep = epoch;
     }
 
-    fn get_epoch(&self) -> Epoch {
+    pub fn get_epoch(&self) -> Epoch {
         *self.epoch.borrow()
     }
 }
@@ -60,11 +60,11 @@ impl PartialEq for DatabaseValue {
 }
 
 pub trait BaseEntityAttribute {
-    fn get_initial(&self) -> &DatabaseValue;
+    fn get_initial(&self) -> DatabaseValue;
 
-    fn get_value(&self) -> &DatabaseValue;
+    fn get_value(&self) -> DatabaseValue;
 
-    fn set_value(&mut self, value: DatabaseValue, epoch: Epoch);
+    fn set_value(&self, value: DatabaseValue, epoch: Epoch);
 }
 
 pub trait EntityAttribute: Debug + BaseEntityAttribute {}
@@ -72,12 +72,12 @@ pub trait EntityAttribute: Debug + BaseEntityAttribute {}
 impl<T: Debug + BaseEntityAttribute> EntityAttribute for T {}
 
 #[derive(Debug)]
-struct PhysicalAttribute {
+pub struct PhysicalAttribute {
     current_epoch_ptr: Rc<EpochPtr>,
 
     initial_epoch_ptr: Rc<EpochPtr>,
 
-    value_history: Vec<AttributeValue<DatabaseValue>>,
+    value_history: RefCell<Vec<AttributeValue<DatabaseValue>>>,
 }
 
 impl PhysicalAttribute {
@@ -85,46 +85,49 @@ impl PhysicalAttribute {
         PhysicalAttribute {
             current_epoch_ptr,
             initial_epoch_ptr,
-            value_history: vec!(),
+            value_history: RefCell::new(vec!()),
         }
     }
 
 
-    fn get_at_epoch(&self, epoch: Epoch) -> &DatabaseValue {
-        for history in self.value_history.iter().rev() {
+    fn get_at_epoch(&self, epoch: Epoch) -> DatabaseValue {
+        let value_history = self.value_history.borrow();
+        for history in value_history.iter().rev() {
             if history.epoch <= epoch {
-                return &history.value;
+                return history.value.clone();
             }
         }
         // return the initial value instead
-        let initial = self.value_history.first().unwrap();
-        return &initial.value;
+        let initial = value_history.first().unwrap();
+        return initial.value.clone();
     }
 
-    fn insert_at_epoch(&mut self, value: DatabaseValue, epoch: Epoch) {
+    fn insert_at_epoch(&self, value: DatabaseValue, epoch: Epoch) {
+        let mut value_history = self.value_history.borrow_mut();
+
         let history_value = AttributeValue { epoch, value };
-        for (i, hist) in self.value_history.iter().enumerate() {
+        for (i, hist) in value_history.iter().enumerate() {
             if hist.epoch > epoch {
-                self.value_history.insert(i, history_value);
+                value_history.insert(i, history_value);
                 return;
             }
         }
 
-        self.value_history.push(history_value);
+        value_history.push(history_value);
     }
 }
 
 
 impl<'a> BaseEntityAttribute for PhysicalAttribute {
-    fn get_initial(&self) -> &DatabaseValue {
+    fn get_initial(&self) -> DatabaseValue {
         self.get_at_epoch(self.initial_epoch_ptr.get_epoch())
     }
 
-    fn get_value(&self) -> &DatabaseValue {
+    fn get_value(&self) -> DatabaseValue {
         self.get_at_epoch(self.current_epoch_ptr.get_epoch())
     }
 
-    fn set_value(&mut self, value: DatabaseValue, epoch: Epoch) {
+    fn set_value(&self, value: DatabaseValue, epoch: Epoch) {
         self.insert_at_epoch(value, epoch);
     }
 }
@@ -190,11 +193,13 @@ pub struct Entity {
     physical_attributes: HashMap<String, PhysicalAttribute>,
 }
 
+#[derive(Clone, Debug)]
 pub enum AttributeKind {
     Physical,
     ManyToMany,
 }
 
+#[derive(Clone, Debug)]
 pub struct AttributeDescriptor {
     kind: AttributeKind,
     name: String,
@@ -270,15 +275,15 @@ mod tests {
         attr.set_value(DatabaseValue::Number(42), 0);
         attr.set_value(DatabaseValue::Number(52), 2);
 
-        assert_eq!(attr.get_initial(), &DatabaseValue::Number(42));
-        assert_eq!(attr.get_value(), &DatabaseValue::Number(52));
+        assert_eq!(attr.get_initial(), DatabaseValue::Number(42));
+        assert_eq!(attr.get_value(), DatabaseValue::Number(52));
         current_ptr.slide(3);
-        assert_eq!(attr.get_initial(), &DatabaseValue::Number(42));
-        assert_eq!(attr.get_value(), &DatabaseValue::Number(52));
+        assert_eq!(attr.get_initial(), DatabaseValue::Number(42));
+        assert_eq!(attr.get_value(), DatabaseValue::Number(52));
 
         current_ptr.slide(0);
-        assert_eq!(attr.get_initial(), &DatabaseValue::Number(42));
-        assert_eq!(attr.get_value(), &DatabaseValue::Number(42));
+        assert_eq!(attr.get_initial(), DatabaseValue::Number(42));
+        assert_eq!(attr.get_value(), DatabaseValue::Number(42));
     }
 
     #[test]
@@ -292,7 +297,7 @@ mod tests {
             current_ptr,
         );
 
-        assert_eq!(entity.get("name").unwrap().get_initial(), &DatabaseValue::String("john".to_string()))
+        assert_eq!(entity.get("name").unwrap().get_initial(), DatabaseValue::String("john".to_string()))
     }
 
 
