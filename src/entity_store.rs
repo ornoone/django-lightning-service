@@ -5,13 +5,6 @@ use uuid::Uuid;
 use crate::errors::EntityError;
 use crate::expression::{FilterExpression, match_entity};
 
-struct EntityStore {
-    initial_ptr: Rc<EpochPtr>,
-    current_ptr: Rc<EpochPtr>,
-    entities: EntityStorage,
-    index: EntityIdentifierIndex,
-}
-
 
 struct EntityIdentifierIndex {
     entities_pk_index: HashMap<Model, HashMap<PK, Rc<Entity>>>,
@@ -85,19 +78,28 @@ impl EntityStorage {
     }
 }
 
+
+pub struct EntityStore {
+    initial_ptr: Rc<EpochPtr>,
+    current_ptr: Rc<EpochPtr>,
+    entities: EntityStorage,
+    index: EntityIdentifierIndex,
+}
+
+
 impl<'a> EntityStore {
-    fn get(&self, identifier: &'a EntityIdentifier) -> Result<Rc<Entity>, EntityError> {
+    pub fn get(&self, identifier: &'a EntityIdentifier) -> Result<Rc<Entity>, EntityError> {
         self.index.get(identifier)
     }
 
-    fn filter(&self, model: Model, filter_expression: &FilterExpression) -> Result<Vec<Rc<Entity>>, EntityError> {
+    pub fn filter(&self, model: Model, filter_expression: &FilterExpression) -> Result<Vec<Rc<Entity>>, EntityError> {
 
         self.entities.filter(model, filter_expression)
     }
 
 
 
-    fn add_entity(&'a mut self, entity: Entity) -> Rc<Entity> {
+    pub fn add_entity(&'a mut self, entity: Entity) -> Rc<Entity> {
         let identifier = entity.get_identifier();
         let get_result = self.index.get(identifier);
         match get_result {
@@ -112,7 +114,7 @@ impl<'a> EntityStore {
         }
     }
 
-    fn new() -> EntityStore {
+    pub fn new() -> EntityStore {
         EntityStore {
             initial_ptr: Rc::new(EpochPtr::default()),
             current_ptr: Rc::new(EpochPtr::default()),
@@ -121,7 +123,7 @@ impl<'a> EntityStore {
         }
     }
 
-    fn instantiate_entity(&'a mut self, identifier: EntityIdentifier, attributes_descriptors: Vec<AttributeDescriptor>) -> Rc<Entity> {
+    pub fn instantiate_entity(&'a mut self, identifier: EntityIdentifier, attributes_descriptors: Vec<AttributeDescriptor>) -> Rc<Entity> {
         let entity = Entity::new(identifier, attributes_descriptors, Rc::clone(&self.initial_ptr), Rc::clone(&self.current_ptr));
         self.add_entity(entity)
     }

@@ -1,5 +1,5 @@
 use std::rc::Rc;
-use crate::entity::{DatabaseValue, Entity};
+use crate::entity::{DatabaseValue, Entity, BaseEntityAttribute};
 use crate::errors::EntityError;
 
 

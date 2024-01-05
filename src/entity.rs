@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
+use pyo3::FromPyObject;
 use uuid::Uuid;
 use crate::errors::EntityError;
 
@@ -118,7 +119,7 @@ impl PhysicalAttribute {
 }
 
 
-impl<'a> BaseEntityAttribute for PhysicalAttribute {
+impl BaseEntityAttribute for PhysicalAttribute {
     fn get_initial(&self) -> DatabaseValue {
         self.get_at_epoch(self.initial_epoch_ptr.get_epoch())
     }
@@ -198,7 +199,7 @@ impl EntityIdentifier {
 #[derive(Debug)]
 pub struct Entity {
     identifier: EntityIdentifier,
-    physical_attributes: HashMap<String, PhysicalAttribute>,
+    physical_attributes: HashMap<String, Rc<PhysicalAttribute>>,
 }
 
 #[derive(Clone, Debug)]
@@ -236,7 +237,7 @@ impl<'a> PartialEq for Entity {
 
 impl<'a> Entity {
     pub fn new(identifier: EntityIdentifier, attributes: Vec<AttributeDescriptor>, initial_ptr: Rc<EpochPtr>, current_ptr: Rc<EpochPtr>) -> Self {
-        let mut physicals: HashMap<String, PhysicalAttribute> = HashMap::new();
+        let mut physicals: HashMap<String, Rc<PhysicalAttribute>> = HashMap::new();
 
         for attribute in attributes {
             match attribute.kind {
@@ -244,7 +245,7 @@ impl<'a> Entity {
                 AttributeKind::Physical => {
                     let mut attr = PhysicalAttribute::new(Rc::clone(&current_ptr), Rc::clone(&initial_ptr));
                     attr.set_value(attribute.initial, initial_ptr.get_epoch());
-                    physicals.insert(attribute.name, attr);
+                    physicals.insert(attribute.name, Rc::new(attr));
                 }
             }
         }
@@ -254,9 +255,9 @@ impl<'a> Entity {
         }
     }
 
-    pub fn get<'b>(&'a self, attribute: &'b str) -> Result<&'a (dyn EntityAttribute), EntityError> {
+    pub fn get<'b>(&'a self, attribute: &'b str) -> Result<Rc<PhysicalAttribute>, EntityError> {
         if let Some(attr) = self.physical_attributes.get(attribute) {
-            Ok(attr)
+            Ok(Rc::clone(attr))
         } else {
             Err(EntityError::AttributeNotFound(attribute.to_string()))
         }
