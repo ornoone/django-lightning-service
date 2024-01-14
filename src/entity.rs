@@ -1,8 +1,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
-use pyo3::FromPyObject;
 use uuid::Uuid;
 use crate::errors::EntityError;
 
@@ -21,6 +20,12 @@ impl Default for EpochPtr {
 }
 
 impl EpochPtr {
+
+    pub fn new(epoch: Epoch) -> EpochPtr{
+        EpochPtr {
+            epoch: RefCell::new(epoch)
+        }
+    }
     pub fn slide(&self, epoch: Epoch) {
         let mut ep = self.epoch.borrow_mut();
         *ep = epoch;
@@ -42,7 +47,18 @@ struct AttributeValue<T> {
 pub enum DatabaseValue {
     String(String),
     Number(i64),
+    #[allow(dead_code)]
     None,
+}
+
+impl Display for DatabaseValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DatabaseValue::String(val) => write!(f, "String({})", val),
+            DatabaseValue::Number(val) => write!(f, "Number({})", val),
+            DatabaseValue::None => f.write_str("None"),
+        }
+    }
 }
 
 impl PartialEq for DatabaseValue {
@@ -74,6 +90,7 @@ impl<T: Debug + BaseEntityAttribute> EntityAttribute for T {}
 
 #[derive(Debug)]
 pub struct PhysicalAttribute {
+    attribute_name: String,
     current_epoch_ptr: Rc<EpochPtr>,
 
     initial_epoch_ptr: Rc<EpochPtr>,
@@ -81,9 +98,20 @@ pub struct PhysicalAttribute {
     value_history: RefCell<Vec<AttributeValue<DatabaseValue>>>,
 }
 
+impl Display for PhysicalAttribute {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let values = self.value_history.borrow();
+        write!(f, "{}: {}", self.attribute_name, values.iter().fold(String::new(), |agg, cur| {
+            format!("{}; [{}]{}", agg, cur.epoch, cur.value)
+
+        }))
+    }
+}
+
 impl PhysicalAttribute {
-    fn new(current_epoch_ptr: Rc<EpochPtr>, initial_epoch_ptr: Rc<EpochPtr>) -> Self {
+    fn new(attribute_name: String, current_epoch_ptr: Rc<EpochPtr>, initial_epoch_ptr: Rc<EpochPtr>) -> Self {
         PhysicalAttribute {
+            attribute_name,
             current_epoch_ptr,
             initial_epoch_ptr,
             value_history: RefCell::new(vec!()),
@@ -92,9 +120,12 @@ impl PhysicalAttribute {
 
 
     fn get_at_epoch(&self, epoch: Epoch) -> DatabaseValue {
+        println!("get at epoch {}", epoch);
         let value_history = self.value_history.borrow();
         for history in value_history.iter().rev() {
+            println!("h {history:?}");
             if history.epoch <= epoch {
+                println!("return {}", history.value);
                 return history.value.clone();
             }
         }
@@ -141,6 +172,17 @@ pub struct EntityIdentifier {
     model: Model,
     pk: Option<PK>,
     uuid: Uuid
+}
+
+impl Display for EntityIdentifier {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let pk_str = if self.has_applied_pk() {
+            format!("pk={}", self.pk.unwrap())
+        } else {
+            "not persisted".to_string()
+        };
+        write!(f, "{}[{}]", self.model, pk_str)
+    }
 }
 
 impl PartialEq for EntityIdentifier {
@@ -196,16 +238,21 @@ impl EntityIdentifier {
 }
 
 
-#[derive(Debug)]
 pub struct Entity {
     identifier: EntityIdentifier,
     physical_attributes: HashMap<String, Rc<PhysicalAttribute>>,
 }
 
+impl Debug for Entity {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Entity[{}]", self.identifier)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum AttributeKind {
     Physical,
-    ManyToMany,
+    // ManyToMany,
 }
 
 #[derive(Clone, Debug)]
@@ -241,9 +288,9 @@ impl<'a> Entity {
 
         for attribute in attributes {
             match attribute.kind {
-                AttributeKind::ManyToMany => panic!("not yet implemented"),
+                // AttributeKind::ManyToMany => panic!("not yet implemented"),
                 AttributeKind::Physical => {
-                    let mut attr = PhysicalAttribute::new(Rc::clone(&current_ptr), Rc::clone(&initial_ptr));
+                    let attr = PhysicalAttribute::new(attribute.name.to_string(), Rc::clone(&current_ptr), Rc::clone(&initial_ptr));
                     attr.set_value(attribute.initial, initial_ptr.get_epoch());
                     physicals.insert(attribute.name, Rc::new(attr));
                 }
@@ -280,7 +327,7 @@ mod tests {
         let initial_ptr = Rc::new(EpochPtr::default());
         let current_ptr = Rc::new(EpochPtr::default());
         current_ptr.slide(2);
-        let mut attr: PhysicalAttribute = PhysicalAttribute::new(Rc::clone(&current_ptr), initial_ptr);
+        let attr: PhysicalAttribute = PhysicalAttribute::new("num".to_string(), Rc::clone(&current_ptr), initial_ptr);
         attr.set_value(DatabaseValue::Number(42), 0);
         attr.set_value(DatabaseValue::Number(52), 2);
 

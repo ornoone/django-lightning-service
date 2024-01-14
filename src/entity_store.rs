@@ -117,7 +117,7 @@ impl<'a> EntityStore {
     pub fn new() -> EntityStore {
         EntityStore {
             initial_ptr: Rc::new(EpochPtr::default()),
-            current_ptr: Rc::new(EpochPtr::default()),
+            current_ptr: Rc::new(EpochPtr::new(1)),
             entities: EntityStorage::new(),
             index: EntityIdentifierIndex::new(),
         }
@@ -132,7 +132,7 @@ impl<'a> EntityStore {
 
 #[cfg(test)]
 mod test {
-    use crate::entity::{AttributeDescriptor, AttributeKind, BaseEntityAttribute, DatabaseValue, EntityAttribute, EntityIdentifier, PhysicalAttribute};
+    use crate::entity::{AttributeDescriptor, AttributeKind, BaseEntityAttribute, DatabaseValue, EntityIdentifier};
     use crate::entity_store::EntityStore;
     use crate::expression::{ExactExpression, FilterExpression};
 
@@ -209,10 +209,10 @@ mod test {
         for i in 1..100 {
             let identifier = EntityIdentifier::new("User".to_string());
 
-            let mut entity = entity_store.instantiate_entity(identifier.clone(), attributes_descriptors.clone());
-            let mut name_attr = entity.get("name").unwrap();
+            let entity = entity_store.instantiate_entity(identifier.clone(), attributes_descriptors.clone());
+            let name_attr = entity.get("name").unwrap();
             name_attr.set_value(DatabaseValue::String(format!("user {}", i)), 1);
-            let mut age_attr = entity.get("age").unwrap();
+            let age_attr = entity.get("age").unwrap();
             age_attr.set_value(DatabaseValue::Number(i), 1);
         }
 

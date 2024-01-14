@@ -39,6 +39,7 @@ impl From<ExactExpression> for FilterExpression {
 
 
 impl ExpressionTrait for ExactExpression {
+    #[allow(irrefutable_let_patterns)]
     fn contains(&self, other: &FilterExpression) -> bool {
         if let FilterExpression::Exact(other_eq) = other {
             self.attribute == other_eq.attribute && self.value == other_eq.value
